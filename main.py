@@ -1,19 +1,25 @@
 import requests
 from datetime import datetime, timedelta
 import pytz
+from pytz import timezone
+from dateutil import parser
 
-API_KEY = "your api key" # your api key from the app
+
+API_KEY = "" # your api key from the app
 BASE_URL = "https://api.habitify.me"
 
 headers = {"Authorization": API_KEY}
 
 # 1.get week range
-now = datetime.now(pytz.utc)
+local_tz = timezone("Europe/Prague")
+now = datetime.now(local_tz)
+
 start = now - timedelta(days=now.weekday())
 end = start + timedelta(days=6)
 
-start_str = start.strftime("%Y-%m-%dT00:00:00+00:00")
-end_str = end.strftime("%Y-%m-%dT23:59:59+00:00")
+# ISO with explicit offset (CEST +02:00)
+start_str = start.strftime("%Y-%m-%dT00:00:00+02:00")
+end_str = end.strftime("%Y-%m-%dT23:59:59+02:00")
 
 # 2.fetch habits
 r = requests.get(f"{BASE_URL}/habits", headers=headers)
@@ -36,8 +42,12 @@ for h in habits:
         continue
 
     for log in r2.json().get("data", []):
-        date = log["created_date"][:10]
-        log_lookup[(hid, date)] = True
+
+        for log in r2.json().get("data", []):
+            utc_dt = parser.isoparse(log["created_date"])
+            local_dt = utc_dt.astimezone(local_tz)
+            date = local_dt.strftime("%Y-%m-%d")
+            log_lookup[(hid, date)] = True
 
 # 4. prepare HTML
 days = [(start + timedelta(days=i)).strftime("%a %d") for i in range(7)]
@@ -75,3 +85,4 @@ with open("weekly_log.html", "w", encoding="utf-8") as f:
     f.write(html)
 
 print("HTML report saved as weekly_log.html")
+
